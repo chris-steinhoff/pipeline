@@ -8,15 +8,12 @@
 namespace pipeline {
 
 template <class T>
-class Queue;
-
-template <class T>
 class Future {
 private:
 	pthread_mutex_t value_mutex;
 	pthread_cond_t value_set_cond;
-	T* value;
 	bool value_set;
+	T* value;
 
 public:
 	Future() : value_set(false) {
@@ -31,7 +28,7 @@ public:
 
 	T* get() {
 		pthread_mutex_lock(&value_mutex);
-		if(!this->value_set) {
+		if(!value_set) {
 			pthread_cond_wait(&value_set_cond, &value_mutex);
 		}
 		T* value = this->value;
@@ -42,7 +39,7 @@ public:
 	void set_value(T* value) {
 		pthread_mutex_lock(&value_mutex);
 		this->value = value;
-		this->value_set = true;
+		value_set = true;
 		pthread_cond_signal(&value_set_cond);
 		pthread_mutex_unlock(&value_mutex);
 	}
@@ -53,11 +50,11 @@ template <class T>
 class Work {
 private:
 	bool running;
-	T* value;
-	Future<T>* future;
+	T* const value;
+	Future<T>* const future;
 
 public:
-	Work(bool running, T* value, Future<T>* future)
+	Work(bool running, T* const value, Future<T>*const  future)
 			: running(running), value(value), future(future) {
 	}
 
@@ -99,7 +96,7 @@ public:
 		pthread_mutex_init(&work_mutex, NULL);
 		pthread_cond_init(&work_set_cond, NULL);
 		pthread_barrier_init(&exit_barrier, NULL, 2);
-		this->work_set = false;
+		work_set = false;
 	}
 
 	~Queue() {
@@ -108,11 +105,11 @@ public:
 		pthread_barrier_destroy(&exit_barrier);
 	}
 
-	void put(Work<T>* work) {
+	void put(Work<T>* const work) {
 		std::clog << "offering " << *work << std::endl;
 		pthread_mutex_lock(&work_mutex);
 		this->work = work;
-		this->work_set = true;
+		work_set = true;
 		pthread_cond_signal(&work_set_cond);
 		pthread_mutex_unlock(&work_mutex);
 		pthread_barrier_wait(&exit_barrier);
@@ -124,7 +121,7 @@ public:
 			pthread_cond_wait(&work_set_cond, &work_mutex);
 		}
 		Work<T>* work = this->work;
-		this->work_set = false;
+		work_set = false;
 		pthread_mutex_unlock(&work_mutex);
 		pthread_barrier_wait(&exit_barrier);
 		std::clog << "taking " << *work << std::endl;
@@ -147,13 +144,14 @@ public:
 template <class T>
 class Flow {
 protected:
-	Task<T>* task;
-	Queue<T>* in_queue;
-	Queue<T>* out_queue;
+	Task<T>* const task;
+	Queue<T>* const in_queue;
+	Queue<T>* const out_queue;
 	pthread_t thread;
 
 public:
-	Flow(Task<T>* task, Queue<T>* input_queue, Queue<T>* output_queue)
+	Flow(Task<T>* const task, Queue<T>* const input_queue,
+			Queue<T>* const output_queue)
 			: task(task), in_queue(input_queue), out_queue(output_queue) {
 	}
 
@@ -182,11 +180,11 @@ public:
 	}
 
 	Queue<T>* input_queue() const {
-		return this->in_queue;
+		return in_queue;
 	}
 
 	Queue<T>* output_queue() const {
-		return this->out_queue;
+		return out_queue;
 	}
 
 };
@@ -194,7 +192,7 @@ public:
 template <class T>
 class TerminalFlow : public Flow<T> {
 public:
-	TerminalFlow(Queue<T>* input_queue)
+	TerminalFlow(Queue<T>* const input_queue)
 			: Flow<T>(NULL, input_queue, NULL) {
 	}
 
@@ -216,11 +214,9 @@ private:
 	Flow<T>** flows;
 	const int size;
 	Queue<T>* entry_queue;
-	//Queue<T>* exitry_queue;
 
-	Pipeline(Flow<T>* flows[], int size) : flows(flows), size(size),
-			entry_queue(flows[0]->input_queue())/*,
-			exitry_queue(flows[size - 1]->output_queue())*/ {
+	Pipeline(Flow<T>** const flows, int size) : flows(flows), size(size),
+			entry_queue(flows[0]->input_queue()) {
 	}
 
 public:
@@ -233,7 +229,7 @@ public:
 		delete[] flows;*/
 	}
 
-	static Pipeline* createPipeline(Task<T>** tasks, int size) {
+	static Pipeline* createPipeline(Task<T>** const tasks, int size) {
 		if(size == 0) {
 			throw "Zero_Tasks";
 		}
@@ -246,25 +242,19 @@ public:
 			flows[i]->start();
 			prev_queue = out_queue;
 		}
-		/*Queue<T>* exitry_queue = new Queue<T>();
-		flows[size - 1] = new Flow<T>(tasks[size - 1], prev_queue,
-				exitry_queue);
-		flows[size - 1]->start();*/
 		flows[size] = new TerminalFlow<T>(prev_queue);
 		flows[size]->start();
 		return new Pipeline<T>(flows, size + 1);
 	}
 
-	Future<T>* add(T* work) {
+	Future<T>* add(T* const work) {
 		Future<T>* future = new Future<T>();
-		Work<T>* wk = new Work<T>(true, work, future);
-		this->entry_queue->put(wk);
+		entry_queue->put(new Work<T>(true, work, future));
 		return future;
 	}
 
 	void close() {
-		Work<T>* wk = new Work<T>(false, NULL, NULL);
-		this->entry_queue->put(wk);
+		this->entry_queue->put(new Work<T>(false, NULL, NULL));
 	}
 
 };
