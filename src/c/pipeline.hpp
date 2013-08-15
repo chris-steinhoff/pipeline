@@ -107,7 +107,7 @@ public:
 	}
 
 	void put(Work<T>* const work) {
-		std::clog << "offering " << *work << std::endl;
+		//std::clog << "offering " << *work << std::endl;
 		pthread_mutex_lock(&work_mutex);
 		this->work = work;
 		work_set = true;
@@ -125,7 +125,7 @@ public:
 		work_set = false;
 		pthread_mutex_unlock(&work_mutex);
 		pthread_barrier_wait(&exit_barrier);
-		std::clog << "taking " << *work << std::endl;
+		//std::clog << "taking " << *work << std::endl;
 		return work;
 	}
 
