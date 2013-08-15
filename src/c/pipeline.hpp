@@ -204,6 +204,7 @@ public:
 			if((running = work->is_running())) {
 				work->get_future()->set_value(work->get_value());
 			}
+			delete work;
 		}
 	}
 
@@ -222,12 +223,11 @@ private:
 
 public:
 	~Pipeline() {
-		/*for(int i = 0 ; i < this->size ; ++i) {
+		for(int i = 0 ; i < size ; ++i) {
 			delete this->flows[i]->input_queue();
 			delete this->flows[i];
 		}
-		delete this->exitry_queue;
-		delete[] flows;*/
+		delete[] flows;
 	}
 
 	static Pipeline* createPipeline(Task<T>** const tasks, int size) {

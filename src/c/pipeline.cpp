@@ -1,6 +1,7 @@
 
 #include <pthread.h>
 #include <iostream>
+#include <list>
 #include "pipeline.hpp"
 
 #define ITER 50
@@ -86,13 +87,25 @@ int main() {
 	pipeline::Pipeline<int>* pipe =
 			pipeline::Pipeline<int>::createPipeline(tasks, 3);
 
+	std::list<pipeline::Future<int>*> futures;
 	for(int i = 0 ; i < 10 ; ++i) {
 		int* ii = new int;
 		*ii = i * 10;
 		std::clog << "adding " << i << std::endl;
-		pipe->add(ii);
+		futures.push_back(pipe->add(ii));
 	}
 	pipe->close();
+
+	int i = 0;
+	std::list<pipeline::Future<int>*>::iterator it;
+	for(it = futures.begin() ; it != futures.end() ; ++it) {
+		pipeline::Future<int>* future = *it;
+		int* ii = future->get();
+		std::clog << (i*10+2) << " == " << *ii << std::endl;
+		++i;
+		delete ii;
+		delete future;
+	}
 
 	delete pipe;
 	delete tasks[0];
