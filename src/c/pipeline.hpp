@@ -11,15 +11,54 @@ template <class T>
 class Queue;
 
 template <class T>
+class Future {
+private:
+	pthread_mutex_t value_mutex;
+	pthread_cond_t value_set_cond;
+	T* value;
+	bool value_set;
+
+public:
+	Future() : value_set(false) {
+		pthread_mutex_init(&value_mutex, NULL);
+		pthread_cond_init(&value_set_cond, NULL);
+	}
+
+	~Future() {
+		pthread_mutex_destroy(&value_mutex);
+		pthread_cond_destroy(&value_set_cond);
+	}
+
+	T* get() {
+		pthread_mutex_lock(&value_mutex);
+		if(!this->value_set) {
+			pthread_cond_wait(&value_set_cond, &value_mutex);
+		}
+		T* value = this->value;
+		pthread_mutex_unlock(&value_mutex);
+		return value;
+	}
+
+	void set_value(T* value) {
+		pthread_mutex_lock(&value_mutex);
+		this->value = value;
+		this->value_set = true;
+		pthread_cond_signal(&value_set_cond);
+		pthread_mutex_unlock(&value_mutex);
+	}
+
+};
+
+template <class T>
 class Work {
 private:
 	bool running;
 	T* value;
-	Queue<T>* future_queue;
+	Future<T>* future;
 
 public:
-	Work(bool running, T* value, Queue<T>* future_queue)
-			: running(running), value(value), future_queue(future_queue) {
+	Work(bool running, T* value, Future<T>* future)
+			: running(running), value(value), future(future) {
 	}
 
 	bool is_running() const {
@@ -34,8 +73,8 @@ public:
 		return this->value;
 	}
 
-	Queue<T>* get_future_queue() const {
-		return this->future_queue;
+	Future<T>* get_future() const {
+		return this->future;
 	}
 
 };
@@ -164,24 +203,9 @@ public:
 		while(running) {
 			Work<T>* work = this->in_queue->take();
 			if((running = work->is_running())) {
-				work->get_future_queue()->put(work);
+				work->get_future()->set_value(work->get_value());
 			}
 		}
-	}
-
-};
-
-template <class T>
-class Future {
-private:
-	Queue<T>* queue;
-
-public:
-	Future(Queue<T>* queue) : queue(queue) {
-	}
-
-	T* get() {
-		return queue->take()->value;
 	}
 
 };
@@ -192,21 +216,21 @@ private:
 	Flow<T>** flows;
 	const int size;
 	Queue<T>* entry_queue;
-	Queue<T>* exitry_queue;
+	//Queue<T>* exitry_queue;
 
 	Pipeline(Flow<T>* flows[], int size) : flows(flows), size(size),
-			entry_queue(flows[0]->input_queue()),
-			exitry_queue(flows[size - 1]->output_queue()) {
+			entry_queue(flows[0]->input_queue())/*,
+			exitry_queue(flows[size - 1]->output_queue())*/ {
 	}
 
 public:
 	~Pipeline() {
-		for(int i = 0 ; i < this->size ; ++i) {
+		/*for(int i = 0 ; i < this->size ; ++i) {
 			delete this->flows[i]->input_queue();
 			delete this->flows[i];
 		}
 		delete this->exitry_queue;
-		delete[] flows;
+		delete[] flows;*/
 	}
 
 	static Pipeline* createPipeline(Task<T>** tasks, int size) {
@@ -232,8 +256,8 @@ public:
 	}
 
 	Future<T>* add(T* work) {
-		Work<T>* wk = new Work<T>(true, work, new Queue<T>());
-		Future<T>* future = new Future<T>(wk->get_future_queue());
+		Future<T>* future = new Future<T>();
+		Work<T>* wk = new Work<T>(true, work, future);
 		this->entry_queue->put(wk);
 		return future;
 	}

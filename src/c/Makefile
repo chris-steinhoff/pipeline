@@ -1,5 +1,5 @@
 
-CFLAGS=-Wall -ansi -pedantic
+CFLAGS=-Wall -ggdb -ansi -pedantic
 CXXFLAGS=$(CFLAGS)
 
 .PHONY: clean

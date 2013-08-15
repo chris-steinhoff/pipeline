@@ -14,7 +14,7 @@ void* putter1(void* arg) {
 		*ip = i;
 		pipeline::Work<int>* work =
 				new pipeline::Work<int>(true, ip,
-						new pipeline::Queue<int>());
+						new pipeline::Future<int>());
 		queue->put(work);
 	}
 	queue->put(new pipeline::Work<int>(false, NULL, NULL));
@@ -26,11 +26,11 @@ void* taker1(void* arg) {
 	bool running = true;
 	while(running) {
 		pipeline::Work<int>* work = queue->take();
-		int* val = work->get_value();
-		std::clog << "val = " << *val << std::endl;
 		if((running = work->is_running())) {
+			int* val = work->get_value();
+			std::clog << "val = " << *val << std::endl;
 			delete val;
-			delete work->get_future_queue();
+			delete work->get_future();
 		}
 		delete work;
 	}
