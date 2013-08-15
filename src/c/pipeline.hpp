@@ -78,7 +78,8 @@ public:
 
 template <class T>
 std::ostream& operator<<(std::ostream& out, Work<T>& work) {
-	out << work.get_value();
+	T* v = work.get_value();
+	out << (v ? *v : NULL);
 	return out;
 }
 
