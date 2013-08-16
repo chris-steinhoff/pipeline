@@ -62,10 +62,6 @@ public:
 		return this->running;
 	}
 
-	void set_running(bool running) {
-		this->running = running;
-	}
-
 	T* get_value() const {
 		return this->value;
 	}
@@ -93,11 +89,10 @@ private:
 	Work<T>* work;
 
 public:
-	Queue() {
+	Queue() : work_set(false) {
 		pthread_mutex_init(&work_mutex, NULL);
 		pthread_cond_init(&work_set_cond, NULL);
 		pthread_barrier_init(&exit_barrier, NULL, 2);
-		work_set = false;
 	}
 
 	~Queue() {
@@ -109,11 +104,14 @@ public:
 	void put(Work<T>* const work) {
 		//std::clog << "offering " << *work << std::endl;
 		pthread_mutex_lock(&work_mutex);
+		if(work_set) {
+			pthread_cond_wait(&work_set_cond, &work_mutex);
+		}
 		this->work = work;
 		work_set = true;
 		pthread_cond_signal(&work_set_cond);
 		pthread_mutex_unlock(&work_mutex);
-		pthread_barrier_wait(&exit_barrier);
+		//pthread_barrier_wait(&exit_barrier);
 	}
 
 	Work<T>* take() {
@@ -123,8 +121,9 @@ public:
 		}
 		Work<T>* work = this->work;
 		work_set = false;
+		pthread_cond_signal(&work_set_cond);
 		pthread_mutex_unlock(&work_mutex);
-		pthread_barrier_wait(&exit_barrier);
+		//pthread_barrier_wait(&exit_barrier);
 		//std::clog << "taking " << *work << std::endl;
 		return work;
 	}

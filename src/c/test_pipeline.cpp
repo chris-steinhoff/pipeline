@@ -123,7 +123,6 @@ TEST(QueueTest, Class) {
 	pthread_t thread;
 	pthread_create(&thread, NULL, putter<Person>, &arg);
 	Work<Person>* wk;
-	int i = 0;
 	while((wk = queue->take())->is_running()) {
 		Person* p = wk->get_value();
 		EXPECT_STREQ("Full Name", p->get_name());
@@ -131,6 +130,45 @@ TEST(QueueTest, Class) {
 		delete wk;
 	}
 	delete queue;
+}
+
+template <class T>
+class AddTask : public pipeline::Task<T> {
+private:
+	T add;
+public:
+	AddTask(T add) : add(add) {}
+	void process(T* work) { *work += add; }
+};
+
+#define tsize 2
+#define fsize 100
+TEST(PipelineTest, Int) {
+	AddTask<int>** tasks = new AddTask<int>*[tsize];
+	tasks[0] = new AddTask<int>(5);
+	tasks[1] = new AddTask<int>(10);
+	Task<int>** tas = (Task<int>**)tasks;
+
+	Pipeline<int>* pipe = Pipeline<int>::createPipeline(tas, tsize);
+
+	Future<int>* futures[fsize];
+	for(int i = 0 ; i < fsize ; ++i) {
+		int* ii = new int;
+		*ii = i;
+		futures[i] = pipe->add(ii);
+	}
+
+	pipe->close();
+	for(int i = 0 ; i < fsize ; ++i) {
+		EXPECT_EQ((i + 5 + 10), *futures[i]->get());
+		delete futures[i]->get();
+	}
+
+	delete pipe;
+	for(int i = 0 ; i < tsize ; ++i) {
+		delete tasks[i];
+	}
+	delete[] tasks;
 }
 
 int main(int argc, char** argv) {
